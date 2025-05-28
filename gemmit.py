@@ -75,8 +75,26 @@ def execute_commit(head, body):
     else:
         subprocess.run(['git', 'commit', '-m', head])
 
+def get_api_key():
+    # 1. Versuch: Umgebungsvariable
+    api_key = os.getenv("GEMINI_API_KEY")
+    if api_key:
+        return api_key
+
+    # 2. Versuch: Datei ~/.config/gemmit/key.txt
+    key_file = os.path.expanduser("~/.config/gemmit/key.txt")
+    if os.path.exists(key_file):
+        with open(key_file, "r", encoding="utf-8") as f:
+            api_key = f.read().strip()
+            if api_key:
+                return api_key
+
+    # Wenn beides fehlschlägt
+    raise ValueError("API-Key nicht gefunden. Setze die Umgebungsvariable GEMINI_API_KEY oder speichere ihn in ~/.config/gemmit/key.txt")
+
+
 # API-Key aus Umgebungsvariable
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = get_api_key()
 if not api_key:
     raise ValueError("Setze die Umgebungsvariable GEMINI_API_KEY")
 
