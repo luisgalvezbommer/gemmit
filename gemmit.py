@@ -1,11 +1,54 @@
 import subprocess
 import os
+import sys
 from google import genai
+
+
+def run_git_command(cmd: list[str]) -> str:
+    """Hilfsfunktion zum Ausführen von Git-Befehlen"""
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return result.stdout.strip()
+
+def build_prompt() -> str:
+    """Erstellt einen ausführlichen Prompt für die Commit-Generierung."""
+
+    language = sys.argv[1] if len(sys.argv) > 1 else "deutsch"
+    
+    # Letzte 3 Commits (Header + Body)
+    recent_commits = run_git_command(["git", "log", "-3", "--pretty=format:%s%n%b%n---"])
+    
+    # Geänderte Dateien (staged)
+    changed_files = run_git_command(["git", "diff", "--cached", "--name-only"])
+    
+    # Diff der Staging Area
+    diff = run_git_command(["git", "diff", "--staged", "--cached"])
+    
+    # Prompt zusammenbauen
+    prompt = f"""
+# Kontextinformationen für die Commit-Generierung
+
+## Die letzten Commits im Projekt:
+{recent_commits}
+
+## Es wurden folgende Dateien geändert:
+{changed_files}
+
+# Hier ist das Git-Diff der aktuellen Änderung:
+{diff}
+
+# Aufgabe 
+
+Schreibe eine prägnante Commit-Message auf {language}.
+Die Commit-Message soll dem Conventional Commits Standard entsprechen.
+Gib den Commit so zurück, dass die erste Zeile den Commit-Header darstellt (z. B. feat: ...) 
+und darunter (durch eine Leerzeile getrennt) ein optionaler Body folgt, der die Änderung bei Bedarf genauer beschreibt.
+"""
+    return prompt.strip()
 
 
 # Hole den Git-Diff der gestagten Änderungen
 def get_git_diff():
-    result = subprocess.run(['git', 'diff', '--cached'], stdout=subprocess.PIPE)
+    result = subprocess.run(['git', 'diff', '--staged', '--cached'], stdout=subprocess.PIPE)
     return result.stdout.decode('utf-8')
 
 # Sende den Diff an die Gemini API
@@ -14,7 +57,7 @@ def generate_commit_message(diff, api_key):
 
     response = client.models.generate_content(
         model="gemini-2.0-flash", 
-        contents=prompt    
+        contents=build_prompt().encode('utf-8'),   
     )
     return response.text.strip()
 
@@ -41,15 +84,6 @@ diff = get_git_diff()
 if not diff:
     print("Keine gestagten Änderungen gefunden.")
     exit(0)
-
-prompt = f"""
-Schreibe eine prägnante Commit-Message basierend auf folgendem Git-Diff:
-{diff}
-Die Commit-Message soll dem Conventional Commits Standard entsprechen.
-Gib den Commit so zurück, dass die erste Zeile den Commit-Header darstellt (z. B. feat: ...) 
-und darunter (durch eine Leerzeile getrennt) ein optionaler Body folgt, der die Änderung bei Bedarf genauer beschreibt.
-"""
-
 
 def main():
     commit_message = generate_commit_message(diff, api_key)
