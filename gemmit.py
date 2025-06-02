@@ -1,10 +1,11 @@
 import subprocess
 import os
 import sys
+import tempfile
 from google import genai
 
 
-def run_git_command(cmd: list[str]) -> str:
+def run_command(cmd: list[str]) -> str:
     """Hilfsfunktion zum Ausführen von Git-Befehlen"""
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return result.stdout.strip()
@@ -15,13 +16,13 @@ def build_prompt() -> str:
     language = sys.argv[1] if len(sys.argv) > 1 else "deutsch"
     
     # Letzte 3 Commits (Header + Body)
-    recent_commits = run_git_command(["git", "log", "-3", "--pretty=format:%s%n%b%n---"])
+    recent_commits = run_command(["git", "log", "-3", "--pretty=format:%s%n%b%n---"])
     
     # Geänderte Dateien (staged)
-    changed_files = run_git_command(["git", "diff", "--cached", "--name-only"])
+    changed_files = run_command(["git", "diff", "--cached", "--name-only"])
     
     # Diff der Staging Area
-    diff = run_git_command(["git", "diff", "--staged", "--cached"])
+    diff = run_command(["git", "diff", "--staged", "--cached"])
     
     # Prompt zusammenbauen
     prompt = f"""
@@ -103,19 +104,40 @@ if not diff:
     print("Keine gestagten Änderungen gefunden.")
     exit(0)
 
-def main():
-    commit_message = generate_commit_message(diff, api_key)
+def edit_or_commit(commit_message):
     print("\n🔧 Generierte Commit-Message:\n")
     print(commit_message)
-
     head, body = get_head_and_body(commit_message)
-    # print("\nCommit Head:", head)
-    # print("Commit Body:", body)
     
-    execute = input("\nCommit durchführen? Tippe 'gemmit': ")
+    execute = input("\nCommit durchführen? Tippe 'gemmit'. Commit bearbeiten? Tippe 'edit': ")
     if execute.lower() == 'gemmit':
         execute_commit(head, body)
         print("\n✅ Commit erfolgreich ausgeführt.")
+    elif execute.lower() == 'edit':
+        # Temporäre Datei erstellen und Commit-Message hineinschreiben
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmpfile:
+            tmpfile.write(commit_message)
+            tmpfile.flush()
+            tmp_path = tmpfile.name
+
+        # vim mit der temporären Datei öffnen
+        subprocess.run(['vim', tmp_path])
+
+        # Datei erneut öffnen und bearbeitete Commit-Message einlesen
+        with open(tmp_path, 'r') as file:
+            edited_message = file.read().strip()
+
+        # Erneute Anfrage ob commit oder edit
+        edit_or_commit(edited_message)
+
+        # Temporäre Datei löschen
+        os.unlink(tmp_path)
+
+
+def main():
+    commit_message = generate_commit_message(diff, api_key)
+
+    edit_or_commit(commit_message)
 
 if __name__ == "__main__":
     main()
