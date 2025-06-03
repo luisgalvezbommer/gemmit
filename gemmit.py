@@ -53,12 +53,12 @@ def get_git_diff():
     return result.stdout.decode('utf-8')
 
 # Sende den Diff an die Gemini API
-def generate_commit_message(diff, api_key):
+def generate_commit_message(api_key, prompt):
     client = genai.Client(api_key=api_key)
 
     response = client.models.generate_content(
         model="gemini-2.0-flash", 
-        contents=build_prompt().encode('utf-8'),   
+        contents=prompt,   
     )
     return response.text.strip()
 
@@ -104,12 +104,12 @@ if not diff:
     print("Keine gestagten Änderungen gefunden.")
     exit(0)
 
-def edit_or_commit(commit_message):
+def edit_or_commit(commit_message, prompt):
     print("\n🔧 Generierte Commit-Message:\n")
     print(commit_message)
     head, body = get_head_and_body(commit_message)
     
-    execute = input("\nCommit durchführen? Tippe 'gemmit'. Commit bearbeiten? Tippe 'edit': ")
+    execute = input("\nCommit durchführen? Tippe 'gemmit'. Commit bearbeiten? Tippe 'edit'. Prompt bearbeiten? Tippe 'prompt': ")
     if execute.lower() == 'gemmit':
         execute_commit(head, body)
         print("\n✅ Commit erfolgreich ausgeführt.")
@@ -128,16 +128,37 @@ def edit_or_commit(commit_message):
             edited_message = file.read().strip()
 
         # Erneute Anfrage ob commit oder edit
-        edit_or_commit(edited_message)
+        edit_or_commit(edited_message, prompt)
+
+        # Temporäre Datei löschen
+        os.unlink(tmp_path)
+    elif execute.lower() == 'prompt':
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmpfile:
+            # Temporäre Datei erstellen und Prompt hineinschreiben
+            tmpfile.write(build_prompt())
+            tmpfile.flush()
+            tmp_path = tmpfile.name
+
+        # vim mit der temporären Datei öffnen
+        subprocess.run(['vim', tmp_path])
+
+        # Datei erneut öffnen und bearbeitete Commit-Message einlesen
+        with open(tmp_path, 'r') as file:
+            edited_prompt = file.read().strip()
+
+        # Erneute Anfrage ob commit oder edit
+        edit_or_commit(commit_message, edited_prompt)
 
         # Temporäre Datei löschen
         os.unlink(tmp_path)
 
 
-def main():
-    commit_message = generate_commit_message(diff, api_key)
 
-    edit_or_commit(commit_message)
+def main():
+    prompt = build_prompt().encode('utf-8')
+    commit_message = generate_commit_message(api_key, prompt)
+
+    edit_or_commit(commit_message, prompt)
 
 if __name__ == "__main__":
     main()
