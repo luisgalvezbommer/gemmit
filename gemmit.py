@@ -43,6 +43,7 @@ Schreibe eine prägnante Commit-Message auf {language}.
 Die Commit-Message soll dem Conventional Commits Standard entsprechen.
 Gib den Commit so zurück, dass die erste Zeile den Commit-Header darstellt (z. B. feat: ...) 
 und darunter (durch eine Leerzeile getrennt) ein optionaler Body folgt, der die Änderung bei Bedarf genauer beschreibt.
+Bitte orientiere dich an den großen Änderungen des git diffs, und nicht an den kleineren Details.
 """
     return prompt.strip()
 
